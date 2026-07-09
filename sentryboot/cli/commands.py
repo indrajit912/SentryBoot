@@ -137,6 +137,10 @@ def start(timeout: Optional[int] = typer.Option(None, help="Challenge timeout in
     config = ConfigManager()
     config.load()
     
+    # Start background synchronization of cached offline alerts
+    from sentryboot.utils.caching import start_background_sync
+    start_background_sync(config)
+    
     if timeout is None:
         timeout_seconds = int(config.default_timeout_mins * 60)
     else:

@@ -71,6 +71,9 @@ then SentryBoot immediately sends a structured HTML notification to your email v
 - **Rotational Logging**: Logs events to a structured log file in the user's home directory with automatic size limits.
 - **HTML-Only Notifications**: Optimized for modern email clients, utilizing clean CSS styling, progress status alerts, and diagnostic tables without fallback plain-text leakage.
 - **Intruder Photo Capture**: Integrates with system webcams (using `opencv-python`) to automatically take a snapshot of the intruder upon unauthenticated system access, saving it locally under `~/.sentryboot/snapshots/` and embedding it directly into the HTML email alert.
+- **Offline Alert Caching**: Encapsulates threat alert details in a local JSON cache if internet is missing or the email API fails, triggering a concurrent background daemon thread on startup to auto-sync them once the connection returns.
+- **Intrusion Forensic Aggregation**: Automatically dumps running processes (`processes.txt`) and active socket connections (`network_connections.txt`) using native shell tools on failure, adding them to the alert email as file attachments.
+- **Native Session Auto-Locking**: Protects the computer by calling native OS screen locking commands (Win32 `LockWorkStation` on Windows) immediately after registering the breach, locking the computer console from the intruder.
 
 ---
 

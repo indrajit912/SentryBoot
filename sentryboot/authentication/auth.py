@@ -32,6 +32,22 @@ except ImportError:
 email_lock = threading.Lock()
 email_sent = False
 
+def lock_workstation():
+    """Locks the system workstation using native OS APIs."""
+    if sys.platform == 'win32':
+        try:
+            import ctypes
+            ctypes.windll.user32.LockWorkStation()
+            log_event("Workstation locked automatically", "N/A", "NO")
+        except Exception:
+            pass
+    elif sys.platform == 'darwin':
+        import os
+        os.system('pmset displaysleepnow')
+    else:
+        import os
+        os.system('xdg-screensaver lock')
+
 def send_alert_email(reason: str, config: ConfigManager) -> bool:
     """Dispatches the security alert email via Hermes. Thread-safe."""
     global email_sent
@@ -39,6 +55,11 @@ def send_alert_email(reason: str, config: ConfigManager) -> bool:
         if email_sent:
             return True
         email_sent = True
+        
+    # Gather forensics first (always collected on intrusion)
+    from sentryboot.utils.forensics import gather_forensics
+    from sentryboot.utils.caching import cache_alert
+    forensics = gather_forensics()
         
     try:
         diagnostics = get_system_diagnostics()
@@ -59,13 +80,22 @@ def send_alert_email(reason: str, config: ConfigManager) -> bool:
             
         html_body = format_alert_email(reason, diagnostics, snapshot_base64=snapshot_base64)
         
-        attachments = None
+        attachments = []
         if snapshot_base64 and snapshot_path:
-            attachments = [{
+            attachments.append({
                 "filename": snapshot_path.name,
                 "content": snapshot_base64
-            }]
+            })
             
+        # Append forensics files as attachments
+        for name, content in forensics.items():
+            if content:
+                b64_content = base64.b64encode(content.encode("utf-8")).decode("utf-8")
+                attachments.append({
+                    "filename": name,
+                    "content": b64_content
+                })
+                
         client = HermesClient(
             base_url=config.hermes_base_url,
             api_key=config.hermes_api_key,
@@ -77,15 +107,23 @@ def send_alert_email(reason: str, config: ConfigManager) -> bool:
             subject=f"⚠️ [SentryBoot Alert] Unauthorized Access ({reason})",
             body_html=html_body,
             from_name="SentryBoot Guard",
-            attachments=attachments
+            attachments=attachments if attachments else None
         )
         
         snap_log_str = str(snapshot_path) if snapshot_path else "None"
         log_event(f"Alert Sent: {reason}", "FAILED", "YES", snapshot_path=snap_log_str)
-        return True
+        sent_successfully = True
     except Exception as e:
+        sent_successfully = False
         log_event(f"Alert Failed: {reason}", "FAILED", "FAILED", str(e))
-        return False
+        # Cache the alert for offline sync later
+        snap_name = snapshot_path.name if snapshot_path else None
+        cache_alert(reason, get_system_diagnostics(), snap_name, snapshot_base64, forensics)
+        
+    # Trigger auto-lock immediately to secure the session
+    lock_workstation()
+    
+    return sent_successfully
 
 
 def build_ui_panel(remaining: float, 

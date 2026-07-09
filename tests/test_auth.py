@@ -347,5 +347,100 @@ class TestAuthAndConfig(unittest.TestCase):
         self.assertIn("SECURITY INFO", output)
         self.assertIn("Recipient Email", output)
 
+    def test_forensics_gathering(self):
+        from sentryboot.utils.forensics import gather_forensics, get_process_snapshot, get_network_snapshot
+        
+        procs = get_process_snapshot()
+        self.assertIsInstance(procs, str)
+        self.assertTrue(len(procs) > 0)
+        
+        net = get_network_snapshot()
+        self.assertIsInstance(net, str)
+        self.assertTrue(len(net) > 0)
+        
+        forensics = gather_forensics()
+        self.assertIn("processes.txt", forensics)
+        self.assertIn("network_connections.txt", forensics)
+        self.assertTrue(len(forensics["processes.txt"]) > 0)
+        self.assertTrue(len(forensics["network_connections.txt"]) > 0)
+
+    def test_offline_alert_caching_and_sync(self):
+        from sentryboot.utils.caching import cache_alert, sync_cached_alerts
+        import sentryboot.utils.caching as caching
+        from sentryboot.config.manager import ConfigManager
+        import tempfile
+        import json
+        from pathlib import Path
+        from unittest.mock import patch, MagicMock
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_cache_dir = Path(tmpdir) / "cache"
+            
+            # Patch CACHE_DIR
+            old_cache_dir = caching.CACHE_DIR
+            caching.CACHE_DIR = test_cache_dir
+            
+            try:
+                # Cache an alert
+                reason = "Mock Threat"
+                diagnostics = {"computer_name": "TEST-PC"}
+                forensics_data = {"processes.txt": "proc1", "network_connections.txt": "conn1"}
+                
+                cache_alert(reason, diagnostics, "snap.jpg", "b64img", forensics_data)
+                
+                # Check file created
+                json_files = list(test_cache_dir.glob("*.json"))
+                self.assertEqual(len(json_files), 1)
+                
+                # Verify content
+                with open(json_files[0], "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                self.assertEqual(data["reason"], reason)
+                self.assertEqual(data["diagnostics"], diagnostics)
+                self.assertEqual(data["snapshot_name"], "snap.jpg")
+                self.assertEqual(data["snapshot_base64"], "b64img")
+                self.assertEqual(data["forensics"], forensics_data)
+                
+                # Sync cache with mocked HermesClient
+                config = ConfigManager()
+                config.hermes_base_url = "https://mock-hermes"
+                config.hermes_api_key = "mock-key"
+                config.hermes_emailbot_id = "mock-bot"
+                config.recipient_email = "test@example.com"
+                
+                with patch('sentryboot.utils.caching.HermesClient') as mock_hermes_class:
+                    mock_client = MagicMock()
+                    mock_hermes_class.return_value = mock_client
+                    
+                    sync_cached_alerts(config)
+                    
+                    # Assert client.send_email was called once and cache cleared
+                    mock_client.send_email.assert_called_once()
+                    self.assertEqual(len(list(test_cache_dir.glob("*.json"))), 0)
+            finally:
+                caching.CACHE_DIR = old_cache_dir
+
+    def test_lock_workstation_call(self):
+        from unittest.mock import patch
+        from sentryboot.authentication.auth import lock_workstation
+        
+        # Test Windows lock call mock
+        with patch('sys.platform', 'win32'), \
+             patch('ctypes.windll.user32.LockWorkStation') as mock_lock:
+            lock_workstation()
+            mock_lock.assert_called_once()
+            
+        # Test macOS screen saver call mock
+        with patch('sys.platform', 'darwin'), \
+             patch('os.system') as mock_sys:
+            lock_workstation()
+            mock_sys.assert_called_once_with('pmset displaysleepnow')
+            
+        # Test Linux screensaver lock mock
+        with patch('sys.platform', 'linux'), \
+             patch('os.system') as mock_sys:
+            lock_workstation()
+            mock_sys.assert_called_once_with('xdg-screensaver lock')
+
 if __name__ == '__main__':
     unittest.main()
