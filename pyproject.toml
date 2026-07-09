@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sentryboot"
+version = "1.0.0"
+description = "A Windows security tool that sends email alerts if authentication is not completed at boot time."
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Indrajit Ghosh", email = "indrajitghosh912@gmail.com"}
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "typer>=0.9.0",
+    "rich>=13.0.0",
+    "requests>=2.31.0"
+]
+
+[project.urls]
+Homepage = "https://indrajitghosh.onrender.com"
+Repository = "https://github.com/ghostrix/sentryboot"
+
+[project.scripts]
+sentryboot = "sentryboot.cli.commands:app"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["sentryboot*"]

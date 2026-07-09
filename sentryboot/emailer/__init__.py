@@ -1,0 +1,1 @@
+# SentryBoot Emailer module
