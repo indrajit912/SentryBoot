@@ -229,6 +229,16 @@ Within this virtual environment layout, the relevant executables are:
    - Uncheck **"Stop the task if it runs longer than"** (Otherwise, Task Scheduler will kill the task after 3 days).
    - Click **OK** to save the task.
 
+> [!TIP]
+> **Maximized / Fullscreen Mode in Task Scheduler**:
+> To force the security challenge window to open maximized or in fullscreen mode at startup, modify the **Add arguments** field:
+> * **Option A (Command Prompt - `cmd.exe`)**: Add `/max` to open maximized.
+>   `cmd.exe /c start "" /max /wait "C:\Users\indra\Documents\hello_world\sentryboot\env\Scripts\sentryboot.exe" start`
+> * **Option B/C (PowerShell - `powershell.exe`/`pwsh.exe`)**: Insert the `-WindowStyle Maximized` parameter.
+>   `pwsh.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Maximized -Command "& 'C:\Users\indra\Documents\hello_world\sentryboot\env\Scripts\sentryboot.exe' start"`
+> * **Option D (Windows Terminal - `wt.exe`)**: Use the `-M` (Maximized) or `-F` (Fullscreen) switches directly at the beginning of the arguments list.
+>   `wt.exe -F pwsh.exe -NoProfile -ExecutionPolicy Bypass -Command "& 'C:\Users\indra\Documents\hello_world\sentryboot\env\Scripts\sentryboot.exe' start"`
+
 ---
 
 ### Scenario 2: Installation via `pipx` from Git
@@ -268,6 +278,16 @@ The configuration is identical to Scenario 1, except for the **Actions** tab val
 * **Program/script**: `wt.exe`
 * **Add arguments (optional)**: `pwsh.exe -NoProfile -ExecutionPolicy Bypass -Command "& 'C:\Users\<YourUsername>\.local\bin\sentryboot.exe' start"`
 * **Start in (optional)**: `C:\Users\<YourUsername>\.local\bin`
+
+> [!TIP]
+> **Maximized / Fullscreen Mode in Task Scheduler**:
+> To force the security challenge window to open maximized or in fullscreen mode at startup, modify the **Add arguments** field:
+> * **Option A (Command Prompt - `cmd.exe`)**: Add `/max` to open maximized.
+>   `cmd.exe /c start "" /max /wait "C:\Users\<YourUsername>\.local\bin\sentryboot.exe" start`
+> * **Option B/C (PowerShell - `powershell.exe`/`pwsh.exe`)**: Insert the `-WindowStyle Maximized` parameter.
+>   `pwsh.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Maximized -Command "& 'C:\Users\<YourUsername>\.local\bin\sentryboot.exe' start"`
+> * **Option D (Windows Terminal - `wt.exe`)**: Use the `-M` (Maximized) or `-F` (Fullscreen) switches directly at the beginning of the arguments list.
+>   `wt.exe -F pwsh.exe -NoProfile -ExecutionPolicy Bypass -Command "& 'C:\Users\<YourUsername>\.local\bin\sentryboot.exe' start"`
 
 #### 🔄 Key Differences between venv and pipx
 * **Scope**: Virtual environment installation requires targeting the project-specific `env/Scripts` path. `pipx` isolates the environment in a global app directory and drops a shim in `%USERPROFILE%\.local\bin\`.

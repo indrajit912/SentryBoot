@@ -206,25 +206,26 @@ def run_auth_challenge(timeout_seconds: Optional[int] = None) -> bool:
             elapsed = time.time() - start_time
             if elapsed >= timeout_seconds:
                 send_alert_email("Timeout Expired", config)
-                return False
+                break
                 
             try:
                 passphrase = console.input("[bold cyan]Enter Passphrase:[/bold cyan] ", password=True)
             except (KeyboardInterrupt, EOFError):
                 send_alert_email("Keyboard Interrupt", config)
-                return False
+                break
                 
             if config.check_passphrase(passphrase):
+                success = True
                 log_event("Successful Authentication", "SUCCESS", "NO")
-                console.print("[bold green]Success! Access Granted.[/bold green]")
-                return True
+                break
             else:
                 attempts_left -= 1
-                log_event("Incorrect Passphrase", "FAILED", "NO")
+                log_event("Incorrect Passphrase", f"FAILED ({attempts_left} left)", "NO")
                 console.print(f"[bold red]Incorrect Passphrase. Attempts left: {attempts_left}[/bold red]")
                 
-        send_alert_email("Too Many Failed Attempts", config)
-        return False
+                if attempts_left <= 0:
+                    send_alert_email("Too Many Failed Attempts", config)
+                    break
 
     # Windows Interactive masked non-blocking loop
     with Live(auto_refresh=False) as live:
@@ -312,5 +313,10 @@ def run_auth_challenge(timeout_seconds: Optional[int] = None) -> bool:
             ctypes.windll.kernel32.SetConsoleTitleW("Command Prompt")
         except Exception:
             pass
+            
+    if success:
+        from sentryboot.authentication.dashboard import display_welcome_dashboard
+        display_welcome_dashboard(config)
+        time.sleep(3.0)
             
     return success

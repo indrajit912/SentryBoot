@@ -329,5 +329,23 @@ class TestAuthAndConfig(unittest.TestCase):
             self.assertEqual(called_kwargs["attachments"][0]["filename"], "intruder_pic.jpg")
             self.assertEqual(called_kwargs["attachments"][0]["content"], "cmF3IGltYWdlIGJ5dGVz")
 
+    def test_display_welcome_dashboard(self):
+        from sentryboot.authentication.dashboard import display_welcome_dashboard
+        from sentryboot.config.manager import ConfigManager
+        from rich.console import Console
+        
+        config = ConfigManager()
+        config.recipient_email = "test@example.com"
+        
+        console = Console(width=80)
+        with console.capture() as capture:
+            display_welcome_dashboard(config, console=console)
+            
+        output = capture.get()
+        self.assertIn("SENTRYBOOT ACCESS GRANTED", output)
+        self.assertIn("SYSTEM INFO", output)
+        self.assertIn("SECURITY INFO", output)
+        self.assertIn("Recipient Email", output)
+
 if __name__ == '__main__':
     unittest.main()
