@@ -70,6 +70,7 @@ then SentryBoot immediately sends a structured HTML notification to your email v
 - **Boot Diagnostics**: Automatically gathers details like local IP, public IP, OS version, and exact boot uptime (queried via Win32 `GetTickCount64`).
 - **Rotational Logging**: Logs events to a structured log file in the user's home directory with automatic size limits.
 - **HTML-Only Notifications**: Optimized for modern email clients, utilizing clean CSS styling, progress status alerts, and diagnostic tables without fallback plain-text leakage.
+- **Intruder Photo Capture**: Integrates with system webcams (using `opencv-python`) to automatically take a snapshot of the intruder upon unauthenticated system access, saving it locally under `~/.sentryboot/snapshots/` and embedding it directly into the HTML email alert.
 
 ---
 
@@ -119,6 +120,10 @@ To configure SentryBoot, run the `init` command:
 ```powershell
 sentryboot init
 ```
+
+> [!IMPORTANT]
+> **Clean Initialization**: If SentryBoot was previously initialized, running `sentryboot init` will automatically detect and purge all existing local data. This includes configuration files, log files (`boot.log`), and captured snapshots. It then rebuilds the directory structure and prompts you for a fresh setup. The process is fully idempotent and safe, removing only SentryBoot-managed files.
+
 This interactive wizard will walk you through the setup:
 1. It requests the Hermes API Base URL (defaults to `https://hermesbot.pythonanywhere.com`).
 2. It prompts you for your **Hermes API Key** (securely hidden as you type).
@@ -126,6 +131,28 @@ This interactive wizard will walk you through the setup:
 4. It asks for your **Recipient Email Address** (where security alerts will be sent).
 5. It requests you to create a new **Secret Passphrase** and confirm it.
 6. Finally, it encrypts the credentials using Windows DPAPI, saves the config to `~/.sentryboot/config.json`, and **sends a test verification email** to your address.
+
+---
+
+## 📸 Webcam Snapshot Feature
+
+SentryBoot includes a webcam snapshot capability to capture a photo of the intruder upon unauthorized system access:
+
+### ⚙️ How It Works
+1. When an intrusion event is detected (timeout, wrong passphrase, or closed window):
+   - SentryBoot queries the system to detect if an active, usable webcam is present.
+   - If a camera is available, SentryBoot opens it, performs a brief 0.5s auto-exposure warm-up, and captures a single frame.
+   - The snapshot is saved to `~/.sentryboot/snapshots/` using a unique filename containing a timestamp and a UUID (e.g., `intruder_20260709_193012_a3b2c1d0.jpg`).
+   - The captured image is converted to a base64 Data URI and embedded directly inside the HTML email alert.
+   - The absolute path to the local file is stored in `boot.log` under the `Snapshot:` key.
+2. If no webcam is available, the device is busy/locked by another application, or camera permission is denied:
+   - SentryBoot logs a warning to `boot.log` (stating `Snapshot: None`).
+   - The intrusion response continues normally without failing, and the Hermes email alert is dispatched with a warning that the snapshot was unavailable.
+
+### 🛡️ Platform-Specific Camera Permissions
+* **Windows**: Works out of the box. Ensure that "Camera access" is toggled on under **Settings > Privacy & security > Camera**, and that "Let desktop apps access your camera" is enabled.
+* **macOS**: When running SentryBoot for the first time, macOS will prompt you for camera access. Make sure to grant permission. You can manage this under **System Settings > Privacy & Security > Camera** (ensure Terminal/Console app is checked).
+* **Linux**: Ensure your user belongs to the `video` group to access camera device nodes (e.g., `/dev/video0`). Run `sudo usermod -aG video $USER` and restart your session if permission is denied.
 
 ---
 
@@ -172,9 +199,28 @@ Within this virtual environment layout, the relevant executables are:
 5. **Actions Tab**:
    - Click **New...**
    - Action: **"Start a program"**
-   - **Program/script**: `cmd.exe`
-   - **Add arguments (optional)**: `/c start /wait "SentryBoot Guard" "C:\Users\indra\Documents\hello_world\sentryboot\env\Scripts\sentryboot.exe" start`
-   - **Start in (optional)**: `C:\Users\indra\Documents\hello_world\sentryboot\env\Scripts`
+   - Choose one of the following shell options to launch the interactive prompt:
+     
+     **Option A: Using Command Prompt (`cmd.exe`)**
+     - **Program/script**: `cmd.exe`
+     - **Add arguments (optional)**: `/c start /wait "SentryBoot Guard" "C:\Users\indra\Documents\hello_world\sentryboot\env\Scripts\sentryboot.exe" start`
+     - **Start in (optional)**: `C:\Users\indra\Documents\hello_world\sentryboot\env\Scripts`
+     
+     **Option B: Using Windows PowerShell (`powershell.exe`)**
+     - **Program/script**: `powershell.exe`
+     - **Add arguments (optional)**: `-NoProfile -ExecutionPolicy Bypass -Command "& 'C:\Users\indra\Documents\hello_world\sentryboot\env\Scripts\sentryboot.exe' start"`
+     - **Start in (optional)**: `C:\Users\indra\Documents\hello_world\sentryboot\env\Scripts`
+     
+     **Option C: Using PowerShell 7 Core (`pwsh.exe`)**
+     - **Program/script**: `pwsh.exe`
+     - **Add arguments (optional)**: `-NoProfile -ExecutionPolicy Bypass -Command "& 'C:\Users\indra\Documents\hello_world\sentryboot\env\Scripts\sentryboot.exe' start"`
+     - **Start in (optional)**: `C:\Users\indra\Documents\hello_world\sentryboot\env\Scripts`
+     
+     **Option D: Using Windows Terminal (`wt.exe`) hosting PowerShell 7**
+     - **Program/script**: `wt.exe`
+     - **Add arguments (optional)**: `pwsh.exe -NoProfile -ExecutionPolicy Bypass -Command "& 'C:\Users\indra\Documents\hello_world\sentryboot\env\Scripts\sentryboot.exe' start"`
+     - **Start in (optional)**: `C:\Users\indra\Documents\hello_world\sentryboot\env\Scripts`
+     
    - Click **OK**.
 6. **Conditions Tab**:
    - Uncheck **"Start the task only if the computer is on AC power"** (Ensures SentryBoot runs on laptops when unplugged).
@@ -203,8 +249,24 @@ Typically, this resolves to:
 #### 📅 Task Scheduler Configuration for pipx
 The configuration is identical to Scenario 1, except for the **Actions** tab values:
 
+**Option A: Using Command Prompt (`cmd.exe`)**
 * **Program/script**: `cmd.exe`
 * **Add arguments (optional)**: `/c start /wait "SentryBoot Guard" "C:\Users\<YourUsername>\.local\bin\sentryboot.exe" start`
+* **Start in (optional)**: `C:\Users\<YourUsername>\.local\bin`
+
+**Option B: Using Windows PowerShell (`powershell.exe`)**
+* **Program/script**: `powershell.exe`
+* **Add arguments (optional)**: `-NoProfile -ExecutionPolicy Bypass -Command "& 'C:\Users\<YourUsername>\.local\bin\sentryboot.exe' start"`
+* **Start in (optional)**: `C:\Users\<YourUsername>\.local\bin`
+
+**Option C: Using PowerShell 7 Core (`pwsh.exe`)**
+* **Program/script**: `pwsh.exe`
+* **Add arguments (optional)**: `-NoProfile -ExecutionPolicy Bypass -Command "& 'C:\Users\<YourUsername>\.local\bin\sentryboot.exe' start"`
+* **Start in (optional)**: `C:\Users\<YourUsername>\.local\bin`
+
+**Option D: Using Windows Terminal (`wt.exe`) hosting PowerShell 7**
+* **Program/script**: `wt.exe`
+* **Add arguments (optional)**: `pwsh.exe -NoProfile -ExecutionPolicy Bypass -Command "& 'C:\Users\<YourUsername>\.local\bin\sentryboot.exe' start"`
 * **Start in (optional)**: `C:\Users\<YourUsername>\.local\bin`
 
 #### 🔄 Key Differences between venv and pipx
@@ -454,13 +516,13 @@ If you want to manage SentryBoot as a user-level service on Linux systemd distri
 ## 💻 CLI Command Reference
 
 ### `sentryboot init`
-Initializes the configuration parameters, encrypts keys via DPAPI, and sends a validation HTML test email.
+Initializes the configuration parameters (including the default challenge timeout in minutes), encrypts keys via DPAPI, and sends a validation HTML test email.
 
 ### `sentryboot update-secrets`
-Securely updates the lock challenge passphrase, Hermes API Key, and Emailbot ID. To prevent unauthorized modifications, SentryBoot prompts you to verify your current passphrase before changes are allowed. Leave inputs blank to keep their current value.
+Securely updates the lock challenge passphrase, Hermes API Key, Emailbot ID, and default challenge timeout. To prevent unauthorized modifications, SentryBoot prompts you to verify your current passphrase before changes are allowed. Leave inputs blank to keep their current value.
 
 ### `sentryboot start`
-Runs the unauthenticated countdown challenge. Customize the timer duration with the `--timeout` option (default: 120 seconds):
+Runs the unauthenticated countdown challenge. Uses the configured default timeout (in minutes) if no arguments are specified. You can temporarily override it with the `--timeout` option (specified in seconds):
 ```powershell
 sentryboot start --timeout 60
 ```

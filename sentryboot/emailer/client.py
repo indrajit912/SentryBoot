@@ -15,7 +15,8 @@ class HermesClient:
                    to_emails: Union[str, List[str]], 
                    subject: str, 
                    body_html: Optional[str] = None, 
-                   from_name: str = "SentryBoot") -> dict:
+                   from_name: str = "SentryBoot",
+                   attachments: Optional[List[dict]] = None) -> dict:
         """Sends an email using the Hermes `/api/v1/send-email` API endpoint.
         
         Args:
@@ -23,6 +24,7 @@ class HermesClient:
             subject: Email subject line
             body_html: Optional HTML formatted body
             from_name: Name of the sender (defaults to 'SentryBoot')
+            attachments: Optional list of dictionaries containing 'filename' and base64-encoded 'content'
             
         Returns:
             dict: The JSON response from the Hermes API
@@ -45,6 +47,8 @@ class HermesClient:
             payload["bot_id"] = self.bot_id
         if body_html:
             payload["email_html_text"] = body_html
+        if attachments:
+            payload["attachments"] = attachments
             
         try:
             response = requests.post(endpoint, headers=headers, json=payload, timeout=15)

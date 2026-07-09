@@ -145,6 +145,7 @@ class ConfigManager:
         self.recipient_email: Optional[str] = None
         self.passphrase_hash: Optional[str] = None
         self.passphrase_salt: Optional[str] = None
+        self.default_timeout_mins: int = 2
         
     def exists(self) -> bool:
         """Returns True if the config file exists."""
@@ -175,6 +176,7 @@ class ConfigManager:
             self.recipient_email = data.get("recipient_email")
             self.passphrase_hash = data.get("passphrase_hash")
             self.passphrase_salt = data.get("passphrase_salt")
+            self.default_timeout_mins = int(data.get("default_timeout_mins", 2))
             return True
         except Exception:
             return False
@@ -200,7 +202,8 @@ class ConfigManager:
             "hermes_emailbot_id": enc_bot_id,
             "recipient_email": self.recipient_email,
             "passphrase_hash": self.passphrase_hash,
-            "passphrase_salt": self.passphrase_salt
+            "passphrase_salt": self.passphrase_salt,
+            "default_timeout_mins": self.default_timeout_mins
         }
         
         # Write file with restricted access if possible
@@ -223,7 +226,9 @@ class ConfigManager:
                         bot_id: Optional[str], 
                         recipient: str, 
                         passphrase: str,
-                        base_url: str = "https://hermesbot.pythonanywhere.com") -> None:
+                        base_url: str = "https://hermesbot.pythonanywhere.com",
+                        default_timeout_mins: int = 2) -> None:
+        self.default_timeout_mins = default_timeout_mins
         """Sets configuration values and hashes the passphrase."""
         self.hermes_base_url = base_url.strip()
         self.hermes_api_key = api_key.strip()
@@ -239,3 +244,82 @@ class ConfigManager:
         if not self.passphrase_hash or not self.passphrase_salt:
             return False
         return verify_passphrase(passphrase, self.passphrase_hash, self.passphrase_salt)
+
+    @classmethod
+    def reset_state(cls) -> dict:
+        """Deletes all local application data, logs, config, and snapshots.
+        
+        Returns:
+            dict: Summary of deleted items.
+        """
+        import logging
+        
+        summary = {
+            "config_deleted": False,
+            "logs_deleted": False,
+            "snapshots_deleted": 0,
+            "dir_recreated": False
+        }
+        
+        # Close any open file handlers to release file locks on Windows
+        logger = logging.getLogger("sentryboot")
+        for handler in list(logger.handlers):
+            try:
+                handler.close()
+                logger.removeHandler(handler)
+            except Exception:
+                pass
+                
+        if cls.CONFIG_DIR.exists():
+            # Delete configuration file
+            if cls.CONFIG_FILE.exists():
+                try:
+                    cls.CONFIG_FILE.unlink()
+                    summary["config_deleted"] = True
+                except Exception:
+                    pass
+                    
+            # Delete snapshots
+            snapshots_dir = cls.CONFIG_DIR / "snapshots"
+            if snapshots_dir.exists():
+                try:
+                    for f in snapshots_dir.glob("*"):
+                        if f.is_file():
+                            f.unlink()
+                            summary["snapshots_deleted"] += 1
+                    snapshots_dir.rmdir()
+                except Exception:
+                    pass
+                    
+            # Delete logs
+            for f in cls.CONFIG_DIR.glob("*.log*"):
+                try:
+                    if f.is_file():
+                        f.unlink()
+                        summary["logs_deleted"] = True
+                except Exception:
+                    pass
+                    
+            # Delete any other stray files
+            for f in cls.CONFIG_DIR.glob("*"):
+                try:
+                    if f.is_file():
+                        f.unlink()
+                except Exception:
+                    pass
+                    
+            # Recreate the clean directory structure
+            try:
+                cls.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+                summary["dir_recreated"] = True
+            except Exception:
+                pass
+        else:
+            try:
+                cls.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+                summary["dir_recreated"] = True
+            except Exception:
+                pass
+                
+        return summary
+

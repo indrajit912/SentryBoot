@@ -1,12 +1,13 @@
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 from sentryboot import __version__, __author__, __website__, __copyright__
 
-def format_alert_email(event_name: str, diagnostics: Dict[str, Any]) -> str:
+def format_alert_email(event_name: str, diagnostics: Dict[str, Any], snapshot_base64: Optional[str] = None) -> str:
     """Generates the HTML email body for a security alert.
     
     Args:
         event_name: Name of the event that triggered the alert (e.g., Timeout, Failed Login)
         diagnostics: System diagnostics dictionary
+        snapshot_base64: Optional base64 encoded string of the captured webcam snapshot
         
     Returns:
         str: HTML Body
@@ -21,6 +22,23 @@ def format_alert_email(event_name: str, diagnostics: Dict[str, Any]) -> str:
     uptime = diagnostics.get("uptime_str", "Unknown")
     boot_time = diagnostics.get("boot_time_str", "Unknown")
     
+    # Snapshot HTML snippet
+    if snapshot_base64:
+        snapshot_html = f"""
+                            <!-- Intruder Snapshot -->
+                            <div style="background-color: #12141a; border: 1px solid #ff3366; border-radius: 8px; padding: 15px; margin: 25px 0; text-align: center;">
+                                <p style="color: #ff3366; font-size: 14px; font-weight: bold; text-transform: uppercase; margin-top: 0; margin-bottom: 12px; letter-spacing: 0.5px;">📸 Captured Intruder Photo</p>
+                                <img src="data:image/jpeg;base64,{snapshot_base64}" alt="Intruder Snapshot" style="max-width: 100%; height: auto; border-radius: 4px; border: 1px solid #2d3139; box-shadow: 0 4px 8px rgba(0,0,0,0.5);" />
+                            </div>
+        """
+    else:
+        snapshot_html = """
+                            <!-- No Snapshot Available -->
+                            <div style="background-color: rgba(255, 193, 7, 0.1); border-left: 4px solid #ffc107; padding: 12px 15px; margin: 25px 0; border-radius: 4px; color: #ffc107; font-size: 13px;">
+                                ⚠️ Webcam snapshot unavailable (No webcam detected or device already busy).
+                            </div>
+        """
+        
     # HTML template with premium dark-themed security layout
     html_body = f"""<!DOCTYPE html>
 <html>
@@ -55,6 +73,8 @@ def format_alert_email(event_name: str, diagnostics: Dict[str, Any]) -> str:
                                 <strong style="color: #ff4d4d; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">Trigger Event:</strong>
                                 <div style="font-size: 18px; font-weight: 600; color: #ffffff; margin-top: 5px;">{event_name}</div>
                             </div>
+                            
+                            {snapshot_html}
                             
                             <h2 style="font-size: 18px; color: #ffffff; border-bottom: 1px solid #2d3139; padding-bottom: 8px; margin-top: 30px;">System Details</h2>
                             

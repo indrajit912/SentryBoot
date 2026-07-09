@@ -45,18 +45,41 @@ def init():
     """First-time setup of SentryBoot configuration and email client validation."""
     print_banner()
     
+    config = ConfigManager()
+    
+    # Clean previous state if it exists
+    if config.exists() or ConfigManager.CONFIG_DIR.exists():
+        console.print("[bold yellow]Previous application data detected. Cleaning up...[/bold yellow]")
+        cleanup_summary = ConfigManager.reset_state()
+        
+        # Display summary
+        summary_msg = []
+        if cleanup_summary["config_deleted"]:
+            summary_msg.append("  - Deleted configuration file")
+        if cleanup_summary["logs_deleted"]:
+            summary_msg.append("  - Deleted log files")
+        if cleanup_summary["snapshots_deleted"] > 0:
+            summary_msg.append(f"  - Deleted {cleanup_summary['snapshots_deleted']} snapshot(s)")
+            
+        if summary_msg:
+            console.print("[green]Cleanup complete:[/green]")
+            for msg in summary_msg:
+                console.print(msg)
+        else:
+            console.print("[green]No files required cleaning.[/green]")
+        console.print("[bold green]✔ Directory structure re-initialized cleanly.[/bold green]\n")
+        
     console.print("[bold yellow]Creating Hermes Email Bot Setup:[/bold yellow]")
     console.print("1. Go to your Hermes Bot website: [cyan]https://hermesbot.pythonanywhere.com[/cyan]")
     console.print("2. Log in and create an Email Bot (or note your existing API Key and Bot ID).")
     console.print("3. Prepare your recipient email address and secure passphrase.\n")
-    
-    config = ConfigManager()
     
     # Prompt config variables
     base_url = typer.prompt("Hermes API Base URL", default="https://hermesbot.pythonanywhere.com")
     api_key = typer.prompt("Hermes API Key (Secret)", hide_input=True)
     bot_id = typer.prompt("Hermes Email Bot ID", default="")
     recipient = typer.prompt("Recipient Email Address")
+    timeout_mins = typer.prompt("Default Passphrase Timeout (in minutes)", default=2, type=int)
     
     while True:
         passphrase = typer.prompt("Create Secret Passphrase (for unlocking)", hide_input=True)
@@ -71,7 +94,8 @@ def init():
         bot_id=bot_id,
         recipient=recipient,
         passphrase=passphrase,
-        base_url=base_url
+        base_url=base_url,
+        default_timeout_mins=timeout_mins
     )
     config.save()
     console.print("[bold green]✔ Configuration saved and encrypted using Windows DPAPI.[/bold green]")
@@ -108,9 +132,17 @@ def init():
 
 
 @app.command("start")
-def start(timeout: int = typer.Option(120, help="Challenge timeout in seconds.")):
+def start(timeout: Optional[int] = typer.Option(None, help="Challenge timeout in seconds. If not specified, uses the configured default.")):
     """Launches the SentryBoot authentication challenge (typically invoked by Windows Task Scheduler)."""
-    success = run_auth_challenge(timeout_seconds=timeout)
+    config = ConfigManager()
+    config.load()
+    
+    if timeout is None:
+        timeout_seconds = int(config.default_timeout_mins * 60)
+    else:
+        timeout_seconds = timeout
+        
+    success = run_auth_challenge(timeout_seconds=timeout_seconds)
     if success:
         sys.exit(0)
     else:
@@ -193,6 +225,7 @@ def show_config():
     table.add_row("Hermes API Key", "[PROTECTED & ENCRYPTED WITH WINDOWS DPAPI]")
     table.add_row("Hermes Emailbot ID", config.hermes_emailbot_id or "Not Configured")
     table.add_row("Recipient Email", config.recipient_email)
+    table.add_row("Default Timeout (Mins)", str(config.default_timeout_mins))
     table.add_row("Passphrase Salt (Hex)", config.passphrase_salt)
     table.add_row("Passphrase Hash (Hex)", config.passphrase_hash)
     
@@ -241,6 +274,10 @@ def update_secrets():
                 config.passphrase_salt = s
                 break
             console.print("[bold red]Passphrases do not match! Please try again.[/bold red]")
+            
+    # Prompt for new default timeout
+    new_timeout = typer.prompt("New Default Passphrase Timeout (in minutes)", default=config.default_timeout_mins, type=int)
+    config.default_timeout_mins = new_timeout
             
     # Save the updated configuration
     config.save()

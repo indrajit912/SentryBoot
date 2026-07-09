@@ -46,14 +46,16 @@ def setup_logger() -> logging.Logger:
 def log_event(event: str, 
               auth_status: str, 
               email_sent: str, 
-              exception_str: str = "None") -> None:
+              exception_str: str = "None",
+              snapshot_path: Optional[str] = None) -> None:
     """Utility to log structured security boot events.
     
     Format of output:
-    Event: <event> | Auth: <auth_status> | Email Sent: <email_sent> | Error: <exception_str>
+    Event: <event> | Auth: <auth_status> | Email Sent: <email_sent> | Error: <exception_str> | Snapshot: <snapshot_path>
     """
     logger = setup_logger()
-    log_msg = f"Event: {event:<25} | Auth: {auth_status:<10} | Email Sent: {email_sent:<6} | Error: {exception_str}"
+    snap = snapshot_path if snapshot_path else "None"
+    log_msg = f"Event: {event:<25} | Auth: {auth_status:<10} | Email Sent: {email_sent:<6} | Error: {exception_str} | Snapshot: {snap}"
     logger.info(log_msg)
 
 
